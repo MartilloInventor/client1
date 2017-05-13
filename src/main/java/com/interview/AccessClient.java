@@ -1,58 +1,96 @@
 package com.interview;
 
-import com.interview.Account;
 import com.sun.jersey.api.client.Client;
 import com.sun.jersey.api.client.ClientResponse;
-import com.sun.jersey.api.client.GenericType;
 import com.sun.jersey.api.client.WebResource;
+import com.sun.jersey.api.client.config.DefaultClientConfig;
 import com.sun.jersey.core.util.MultivaluedMapImpl;
-
+import org.codehaus.jackson.map.ObjectMapper;
+import org.codehaus.jackson.jaxrs.JacksonJsonProvider;
 import javax.ws.rs.core.MultivaluedMap; // the locations of these classes are weird
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
-
+import java.util.Random;
+import java.util.stream.IntStream;
 
 public class AccessClient {
-    final static Client client = Client.create(); // must be non-null and unchangeable
+
+    static Client client = null; // must be non-null and unchangeable
     final static String applicationServiceURI = "http://localhost:8080/api/";
+    final static Random generator = new Random(System.currentTimeMillis());
 
     public static void main(String[] args) {
+        int nummodified = 0;
+        int balance = 0;
         List<Account> accts = null;
         Account account = null;
+        initializeClient();
         try {
+
+            //testing health methods
             System.out.println( getInterviewVersion() );
+            Thread.sleep( 500 );
             System.out.println( getInterviewPostgresVersion() );
+            Thread.sleep( 500 );
             System.out.println( sendInterviewPing() );
+            Thread.sleep(500);
+
+            //testing account query methods
+            accts = getInterviewAccount();
+            if (accts == null) {
+                System.out.println( "No accounts were found" );
+            } else {
+                System.out.println( "Found the following:");
+                for(Account a: accts) {
+                    System.out.println("\tID:	" + a.getId() + "\tBalance:\t" + a.getBalance());
+                }
+            }
+            Thread.sleep( 500 );
+            account = getInterviewAccount( "1" );
+            if (account == null) {
+                System.out.println( "account 1 was not found" );
+            } else {
+                System.out.println( "Found the following:\n\tID:\t"+ account.getId() + "\tBalance:\t" + account.getBalance());
+            }
+            Thread.sleep( 500 );
+            account = getInterviewAccount( "4" );
+            if (account == null) {
+                System.out.println( "account 4 was not found" );
+            } else {
+                System.out.println( "Found the following:\n\tID:\t"+ account.getId() + "\tBalance:\t" + account.getBalance());
+            }
+            Thread.sleep(500);
+            System.out.println("Account 3 has balance: " + getInterviewAccountBalance("3"));
+            Thread.sleep( 500 );
+
+            // methods to modify accounts
+
+            //System.out.println( "transfer of 5 cents from account 1 to account 4 has " +
+            //        makeTransfer( "1", "4", 5 ) );
+
+            System.out.println("Updating account, balance = 500\n" + setInterviewAccountBalance(new Integer(generator.nextInt(25)).toString(), generator.nextInt(2500)) + " records modified");
+            Thread.sleep(500);
+
+            accts = getInterviewAccount();
+            if (accts == null) {
+                System.out.println( "No accounts were found" );
+            } else {
+                System.out.println( "Found the following:\n\t" + accts.toString() );
+            }
+            Thread.sleep(500);
+            System.out.println("Updating account, balance = 500\n" + addInterviewAccountBalance("2", -generator.nextInt(50)) + " records modified");
         } catch (Exception e) {
             e.printStackTrace();
             System.err.println( "Something went wrong!" );
         }
-        accts = getInterviewAccount();
-        if (accts == null) {
-            System.out.println( "No accounts were found" );
-        } else {
-            System.out.println( "Found the following:\n\t" + accts.toString() );
-        }
-        account = getInterviewAccount( "1" );
-        if (account == null) {
-            System.out.println( "account 1 was not found" );
-        } else {
-            System.out.println( "Found the following:\n\t" + account.toString() );
-        }
-        account = getInterviewAccount( "4" );
-        if (account == null) {
-            System.out.println( "account 4 was not found" );
-        } else {
-            System.out.println( "Found the following:\n\t" + account.toString() );
-        }
-        System.out.println( "transfer of 5 cents from account 1 to account 4 has " +
-                makeTransfer( "1", "4", 5 ) );
-        accts = getInterviewAccount();
-        if (accts == null) {
-            System.out.println( "No accounts were found" );
-        } else {
-            System.out.println( "Found the following:\n\t" + accts.toString() );
-        }
+    }
+
+    static public void initializeClient() {
+        DefaultClientConfig defaultClientConfig = new DefaultClientConfig();
+        defaultClientConfig.getClasses().add(JacksonJsonProvider.class);
+        client = Client.create(defaultClientConfig);
     }
 
     static public String sendInterviewPing() throws RuntimeException {
@@ -95,7 +133,7 @@ public class AccessClient {
         String output = "";
 
         try {
-            WebResource webResource = client.resource( applicationServiceURI + "postgress" );
+            WebResource webResource = client.resource( applicationServiceURI + "postgres" );
             ClientResponse response = webResource.accept( "application/json" )
                     .get( ClientResponse.class );
             if (response.getStatus() != 200) {
@@ -110,18 +148,26 @@ public class AccessClient {
     }
 
     static public List<Account> getInterviewAccount() throws RuntimeException {
-        List<Account> accounts = null;
+        ObjectMapper mapper = new ObjectMapper();
+        ArrayList<Account> accounts = new ArrayList<>();
+        String jsonobjinstr = null;
 
         try {
-            WebResource webResource = client.resource( applicationServiceURI + "account" );
+            WebResource webResource = client.resource( applicationServiceURI + "accounts" );
             ClientResponse response = webResource.accept( "application/json" )
                     .get( ClientResponse.class );
             if (response.getStatus() != 200) {
                 throw new RuntimeException( "Failed : HTTP error code : "
                         + response.getStatus() );
             }
-            accounts = response.getEntity( new GenericType<List<Account>>() {
-            } );
+            jsonobjinstr = response.getEntity( String.class );
+            List<LinkedHashMap<Integer, String>> list = mapper.readValue(jsonobjinstr, List.class); // this is totally broken
+            // but I think it's a matter of missing "-marks
+            for(LinkedHashMap<Integer, String> s: list) {
+                String id = s.get("id");
+                Object balance = s.get("balance");
+                accounts.add(new Account(id, (Integer) balance) );
+            }
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -139,7 +185,7 @@ public class AccessClient {
         }
 
         try {
-            WebResource webResource = client.resource( applicationServiceURI + "account" );
+            WebResource webResource = client.resource( applicationServiceURI + "accounts" + "/" + id);
             ClientResponse response = webResource.accept( "application/json" )
                     .get( ClientResponse.class );
             if (response.getStatus() != 200) {
@@ -154,7 +200,7 @@ public class AccessClient {
     }
 
     static public Integer getInterviewAccountBalance(String id) throws RuntimeException {
-        Account account = null;
+
         if (id == null) {
             return 0;
         }
@@ -163,18 +209,18 @@ public class AccessClient {
         }
 
         try {
-            WebResource webResource = client.resource( applicationServiceURI + "account" + "/" + id );
+            WebResource webResource = client.resource( applicationServiceURI + "accounts/balance/" + id );
             ClientResponse response = webResource.accept( "application/json" )
                     .get( ClientResponse.class );
             if (response.getStatus() != 200) {
                 throw new RuntimeException( "Failed : HTTP error code : "
                         + response.getStatus() );
             }
-            account = response.getEntity( Account.class );
-            if (account == null) {
+            Integer balance = response.getEntity( Integer.class );
+            if (balance == null) {
                 return 0;
             }
-            return account.getBalance();
+            return balance;
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -197,7 +243,7 @@ public class AccessClient {
         }
 
         try {
-            WebResource webResource = client.resource( applicationServiceURI + "account" + "/" + acct );
+            WebResource webResource = client.resource( applicationServiceURI + "accounts/balance/" + acct );
             MultivaluedMap queryParams = new MultivaluedMapImpl();
             queryParams.add( "amount", Integer.toString( amount ) );
             ClientResponse response = webResource.queryParams( queryParams ).accept( "application/json" )
@@ -224,14 +270,14 @@ public class AccessClient {
             System.err.println( "Account is zero-length string" );
             return 0;
         }
-        if (amount != 0) {
+        if (amount == 0) {
             System.err.println( "amount must != 0" ); // this probably could be sent to server
             // but why send pointless transaction
             return 0;
         }
 
         try {
-            WebResource webResource = client.resource( applicationServiceURI + "addtobalance" + "/" + acct );
+            WebResource webResource = client.resource( applicationServiceURI + "accounts/addtobalance/" + acct );
             MultivaluedMap queryParams = new MultivaluedMapImpl();
             queryParams.add( "amount", Integer.toString( amount ) );
             ClientResponse response = webResource.queryParams( queryParams ).accept( "application/json" )
@@ -263,18 +309,18 @@ public class AccessClient {
             System.err.println( "Account is zero-length string" );
             return "Failed";
         }
-        if (amount != 0) {
+        if (amount == 0) {
             System.err.println( "amount must != 0" ); // this probably could be sent to server
             // but why send pointless transaction
             return "Failed";
         }
 
         try {
-            WebResource webResource = client.resource( applicationServiceURI + "maketransfer" );
+            WebResource webResource = client.resource( applicationServiceURI + "accounts/transfer" );
             MultivaluedMap queryParams = new MultivaluedMapImpl();
-            queryParams.add( "amount", Integer.toString( amount ) );
             queryParams.add( "srcid", src );
             queryParams.add( "dstid", dst );
+            queryParams.add( "amount", new Integer(amount).toString());
             ClientResponse response = webResource.queryParams( queryParams ).accept( "application/json" )
                     .post( ClientResponse.class );
             if (response.getStatus() != 200) {

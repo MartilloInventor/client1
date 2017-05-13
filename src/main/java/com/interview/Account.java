@@ -2,13 +2,15 @@ package com.interview;
 
 public class Account {
 
-    private String id;
-    private Integer balance;
+    public String id;
+    public Integer balance;
 
     public Account(String id, Integer balance) {
         this.id = id;
         this.balance = balance;
     }
+
+    public Account() {}
 
     public String getId() {
         return id;
