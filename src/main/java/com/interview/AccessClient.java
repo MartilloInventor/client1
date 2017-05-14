@@ -15,8 +15,11 @@ import java.util.List;
 import java.util.Random;
 import java.util.stream.IntStream;
 
-public class AccessClient {
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+public class AccessClient {
+    private static final Logger logger = LoggerFactory.getLogger(AccessClient.class);
     static Client client = null; // must be non-null and unchangeable
     final static String applicationServiceURI = "http://localhost:8080/api/";
     final static Random generator = new Random(System.currentTimeMillis());
@@ -26,18 +29,32 @@ public class AccessClient {
         int balance = 0;
         List<Account> accts = null;
         Account account = null;
+        logger.info("Starting the test client");
+        System.out.println("Class Path is " + System.getProperty("java.class.path"));
         initializeClient();
         try {
-
-            //testing health methods
+            logger.info("Testing the health methods");
             System.out.println( getInterviewVersion() );
-            Thread.sleep( 500 );
             System.out.println( getInterviewPostgresVersion() );
-            Thread.sleep( 500 );
             System.out.println( sendInterviewPing() );
-            Thread.sleep(500);
 
-            //testing account query methods
+            account = getInterviewAccount( "1" );
+            if (account == null) {
+                System.out.println( "account 1 was not found" );
+            } else {
+                System.out.println( "Found the following:\n\tID:\t"+ account.getId() + "\tBalance:\t" + account.getBalance());
+            }
+            
+            account = getInterviewAccount( "4" );
+            if (account == null) {
+                System.out.println( "account 4 was not found" );
+            } else {
+                System.out.println( "Found the following:\n\tID:\t"+ account.getId() + "\tBalance:\t" + account.getBalance());
+            }
+            
+            System.out.println("Account 3 has balance: " + getInterviewAccountBalance("3"));
+
+            logger.info("dump all the accounts");
             accts = getInterviewAccount();
             if (accts == null) {
                 System.out.println( "No accounts were found" );
@@ -47,46 +64,33 @@ public class AccessClient {
                     System.out.println("\tID:	" + a.getId() + "\tBalance:\t" + a.getBalance());
                 }
             }
-            Thread.sleep( 500 );
-            account = getInterviewAccount( "1" );
-            if (account == null) {
-                System.out.println( "account 1 was not found" );
-            } else {
-                System.out.println( "Found the following:\n\tID:\t"+ account.getId() + "\tBalance:\t" + account.getBalance());
-            }
-            Thread.sleep( 500 );
-            account = getInterviewAccount( "4" );
-            if (account == null) {
-                System.out.println( "account 4 was not found" );
-            } else {
-                System.out.println( "Found the following:\n\tID:\t"+ account.getId() + "\tBalance:\t" + account.getBalance());
-            }
-            Thread.sleep(500);
-            System.out.println("Account 3 has balance: " + getInterviewAccountBalance("3"));
-            Thread.sleep( 500 );
 
-            // methods to modify accounts
+            logger.info("methods to modify accounts");
+            System.out.println( "transfer of 5 cents from account 1 to account 4 has " +
+                    makeTransfer( "1", "4", 5 ) );
 
-            //System.out.println( "transfer of 5 cents from account 1 to account 4 has " +
-            //        makeTransfer( "1", "4", 5 ) );
+            System.out.println("Resetting account, balance = 500\n" + setInterviewAccountBalance(new Integer(generator.nextInt(25)).toString(), generator.nextInt(2500)) + " records modified");
 
-            System.out.println("Updating account, balance = 500\n" + setInterviewAccountBalance(new Integer(generator.nextInt(25)).toString(), generator.nextInt(2500)) + " records modified");
-            Thread.sleep(500);
+            System.out.println("Updating account -- " + addInterviewAccountBalance("2", generator.nextInt(100) - 50).toString() + " records modified");
 
+            logger.info("dump all the accounts");
             accts = getInterviewAccount();
             if (accts == null) {
                 System.out.println( "No accounts were found" );
             } else {
-                System.out.println( "Found the following:\n\t" + accts.toString() );
+                System.out.println( "Found the following:");
+                for(Account a: accts) {
+                    System.out.println("\tID:	" + a.getId() + "\tBalance:\t" + a.getBalance());
+                }
             }
-            Thread.sleep(500);
-            System.out.println("Updating account, balance = 500\n" + addInterviewAccountBalance("2", -generator.nextInt(50)) + " records modified");
+
         } catch (Exception e) {
             e.printStackTrace();
             System.err.println( "Something went wrong!" );
         }
     }
 
+    /* here is where the client api starts */
     static public void initializeClient() {
         DefaultClientConfig defaultClientConfig = new DefaultClientConfig();
         defaultClientConfig.getClasses().add(JacksonJsonProvider.class);
@@ -175,6 +179,7 @@ public class AccessClient {
     }
 
     static public Account getInterviewAccount(String id) throws RuntimeException {
+        logger.debug("argument: {}", id);
         Account account = null;
 
         if (id == null) {
@@ -200,7 +205,7 @@ public class AccessClient {
     }
 
     static public Integer getInterviewAccountBalance(String id) throws RuntimeException {
-
+        logger.debug("argument: {}", id);
         if (id == null) {
             return 0;
         }
@@ -229,6 +234,7 @@ public class AccessClient {
 
     // returns number of records updated -- should be at most 1
     static public Integer setInterviewAccountBalance(String acct, int amount) throws RuntimeException {
+        logger.debug("arguments: {}, {}", acct, amount);
         if (acct == null) {
             System.err.println( "Account is null" );
             return 0;
@@ -252,7 +258,7 @@ public class AccessClient {
                 throw new RuntimeException( "Failed : HTTP error code : "
                         + response.getStatus() );
             }
-            return Integer.getInteger( response.getEntity( String.class ) );
+            return Integer.parseInt( response.getEntity( String.class ) );
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -262,6 +268,7 @@ public class AccessClient {
 
     // returns number of database records updated
     static public Integer addInterviewAccountBalance(String acct, int amount) throws RuntimeException {
+        logger.debug("arguments: {}, {}", acct, amount);
         if (acct == null) {
             System.err.println( "Account is null" );
             return 0;
@@ -285,7 +292,7 @@ public class AccessClient {
             if (response.getStatus() != 200) {
                 throw new RuntimeException( "Failed : HTTP error code : " + response.getStatus() );
             }
-            return Integer.getInteger( response.getEntity( String.class ) );
+            return Integer.parseInt( response.getEntity( String.class ) );
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -293,6 +300,7 @@ public class AccessClient {
     }
 
     static public String makeTransfer(String src, String dst, int amount) throws RuntimeException {
+        logger.debug("arguments: {}, {}, {}", src, dst, amount);
         if (src == null) {
             System.err.println( "Account is null" );
             return "Failed";
