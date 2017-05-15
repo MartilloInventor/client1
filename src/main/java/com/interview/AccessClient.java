@@ -66,12 +66,12 @@ public class AccessClient {
             }
 
             logger.info("methods to modify accounts");
-            System.out.println( "transfer of 5 cents from account 1 to account 4 has " +
+            System.out.println( "*Transfer of 5 cents from account 1 to account 4 has " +
                     makeTransfer( "1", "4", 5 ) );
 
-            System.out.println("Resetting account, balance = 500\n" + setInterviewAccountBalance(new Integer(generator.nextInt(25)).toString(), generator.nextInt(2500)) + " records modified");
+            System.out.println("Resetting account\n\t" + setInterviewAccountBalance(new Integer(generator.nextInt(25)).toString(), generator.nextInt(2500)) + " records modified");
 
-            System.out.println("Updating account -- " + addInterviewAccountBalance("2", generator.nextInt(100) - 50).toString() + " records modified");
+            System.out.println("Updating account\n\t" + addInterviewAccountBalance("2", generator.nextInt(100) - 50).toString() + " records modified");
 
             logger.info("dump all the accounts");
             accts = getInterviewAccount();
@@ -83,6 +83,26 @@ public class AccessClient {
                     System.out.println("\tID:	" + a.getId() + "\tBalance:\t" + a.getBalance());
                 }
             }
+
+            logger.info("methods to modify accounts via v2 methods");
+            System.out.println( "*Transfer of 7 cents from account 3 to account 2 is " +
+                    makeTransferV2( "3", "2", 7 ) );
+
+            System.out.println("Resetting account\n\t" + "Record modification is " + setInterviewAccountBalanceV2(new Integer(generator.nextInt(25)).toString(), generator.nextInt(2500)));
+
+            System.out.println("Updating account\n\t" + "Record modification is " + addInterviewAccountBalanceV2("3", generator.nextInt(100) - 50));
+
+            logger.info("dump all the accounts");
+            accts = getInterviewAccount();
+            if (accts == null) {
+                System.out.println( "No accounts were found" );
+            } else {
+                System.out.println( "Found the following:");
+                for(Account a: accts) {
+                    System.out.println("\tID:	" + a.getId() + "\tBalance:\t" + a.getBalance());
+                }
+            }
+	    
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -190,7 +210,7 @@ public class AccessClient {
         }
 
         try {
-            WebResource webResource = client.resource( applicationServiceURI + "accounts" + "/" + id);
+            WebResource webResource = client.resource( applicationServiceURI + "accounts/" + id);
             ClientResponse response = webResource.accept( "application/json" )
                     .get( ClientResponse.class );
             if (response.getStatus() != 200) {
@@ -341,12 +361,110 @@ public class AccessClient {
         return "Failed";
     }
 
-    static public void setInterviewAccountBalanceV2(String acct, int amount) throws RuntimeException {
+    static public String setInterviewAccountBalanceV2(String acct, int amount) throws RuntimeException {
+        logger.debug("arguments: {}, {}", acct, amount);
+        if (acct == null) {
+            System.err.println( "Account is null" );
+            return "Failed";
+        }
+        if (acct.equals( "" )) {
+            System.err.println( "Account is zero-length string" );
+            return "Failed";
+        }
+        if (amount < 0) { // allowed to zero account but not render negative
+            System.err.println( "amount must >= 0" );
+            return "Failed";
+        }
+
+        try {
+            WebResource webResource = client.resource( applicationServiceURI + "accounts/balance/v2/" + acct );
+            MultivaluedMap queryParams = new MultivaluedMapImpl();
+            queryParams.add( "amount", Integer.toString( amount ) );
+            ClientResponse response = webResource.queryParams( queryParams ).accept( "application/json" )
+                    .post( ClientResponse.class );
+            if (response.getStatus() != 200) {
+                throw new RuntimeException( "Failed : HTTP error code : "
+                        + response.getStatus() );
+            }
+            return response.getEntity( String.class ).replaceAll( "\"", "" ); // de-jsonize
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return "Failed";
     }
 
-    static public void addInterviewAccountBalanceV2(String acct, int amount) throws RuntimeException {
+    static public String addInterviewAccountBalanceV2(String acct, int amount) throws RuntimeException {
+        logger.debug("arguments: {}, {}", acct, amount);
+        if (acct == null) {
+            System.err.println( "Account is null" );
+            return "Failed";
+        }
+        if (acct.equals( "" )) {
+            System.err.println( "Account is zero-length string" );
+            return "Failed";
+        }
+        if (amount == 0) {
+            System.err.println( "amount must != 0" ); // this probably could be sent to server
+            // but why send pointless transaction
+            return "Failed";
+        }
+
+        try {
+            WebResource webResource = client.resource( applicationServiceURI + "accounts/addtobalance/v2/" + acct );
+            MultivaluedMap queryParams = new MultivaluedMapImpl();
+            queryParams.add( "amount", Integer.toString( amount ) );
+            ClientResponse response = webResource.queryParams( queryParams ).accept( "application/json" )
+                    .post( ClientResponse.class );
+            if (response.getStatus() != 200) {
+                throw new RuntimeException( "Failed : HTTP error code : " + response.getStatus() );
+            }
+            return response.getEntity( String.class ).replaceAll( "\"", "" ); // de-jsonize
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return "Failed";
     }
 
-    static public void makeTransferV2(String src, String dst, int amount) throws RuntimeException {
+    static public String makeTransferV2(String src, String dst, int amount) throws RuntimeException {
+        logger.debug("arguments: {}, {}, {}", src, dst, amount);
+        if (src == null) {
+            System.err.println( "Account is null" );
+            return "Failed";
+        }
+        if (src.equals( "" )) {
+            System.err.println( "Account is zero-length string" );
+            return "Failed";
+        }
+        if (dst == null) {
+            System.err.println( "Account is null" );
+            return "Failed";
+        }
+        if (dst.equals( "" )) {
+            System.err.println( "Account is zero-length string" );
+            return "Failed";
+        }
+        if (amount == 0) {
+            System.err.println( "amount must != 0" ); // this probably could be sent to server
+            // but why send pointless transaction
+            return "Failed";
+        }
+
+        try {
+            WebResource webResource = client.resource( applicationServiceURI + "accounts/transfer/v2" );
+            MultivaluedMap queryParams = new MultivaluedMapImpl();
+            queryParams.add( "srcid", src );
+            queryParams.add( "dstid", dst );
+            queryParams.add( "amount", new Integer(amount).toString());
+            ClientResponse response = webResource.queryParams( queryParams ).accept( "application/json" )
+                    .post( ClientResponse.class );
+            if (response.getStatus() != 200) {
+                throw new RuntimeException( "Failed : HTTP error code : " + response.getStatus() );
+            }
+            return response.getEntity( String.class ).replaceAll( "\"", "" ); // de-jsonize
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return "Failed";
     }
 }
