@@ -20,7 +20,7 @@ import org.slf4j.LoggerFactory;
 
 public class AccessClient {
     private static final Logger logger = LoggerFactory.getLogger(AccessClient.class);
-    static Client client = null; // must be non-null and unchangeable
+    static Client client = null;
     final static String applicationServiceURI = "http://localhost:8080/api/";
     final static Random generator = new Random(System.currentTimeMillis());
 
